@@ -1,8 +1,10 @@
+use petgraph::dot::{Config, Dot};
+use petgraph::graph::{DiGraph, NodeIndex};
 use std::collections::HashSet;
 
 /// Node structure representing a regex pattern in the tree.
 #[derive(Debug, Clone)]
-struct Node {
+pub struct Node {
     pattern: String,
     children: Vec<Node>,
 }
@@ -97,9 +99,47 @@ fn build_tree(substrings: &[String]) -> Node {
     root
 }
 
+/// Converts the regex tree to a graph for visualization.
+///
+/// # Arguments
+///
+/// * `root` - The root node of the regex pattern tree.
+///
+/// # Returns
+///
+/// A directed graph representation of the regex pattern tree.
+pub fn tree_to_graph(root: &Node) -> DiGraph<String, ()> {
+    let mut graph = DiGraph::new();
+    let root_index = graph.add_node(root.pattern.clone());
+    add_children_to_graph(&mut graph, root_index, &root.children);
+    graph
+}
+
+/// Adds children nodes to the graph recursively.
+///
+/// # Arguments
+///
+/// * `graph` - The graph to add nodes to.
+/// * `parent_index` - The index of the parent node.
+/// * `children` - A slice of child nodes to add.
+fn add_children_to_graph(
+    graph: &mut DiGraph<String, ()>,
+    parent_index: NodeIndex,
+    children: &[Node],
+) {
+    for child in children {
+        let child_index = graph.add_node(child.pattern.clone());
+        graph.add_edge(parent_index, child_index, ());
+        add_children_to_graph(graph, child_index, &child.children);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use petgraph::dot::{Config, Dot};
+    use std::fs::File;
+    use std::io::Write;
 
     #[test]
     fn test_generate_regex_tree() {
@@ -125,5 +165,21 @@ mod tests {
         ];
         let common_substrings = find_common_substrings(&inputs);
         assert!(common_substrings.contains(&"highlighted ".to_string()));
+    }
+
+    #[test]
+    fn test_tree_to_graph() {
+        let inputs = vec![
+            "highlighted text",
+            "highlighted part",
+            "highlighted section",
+        ];
+        let tree = generate_regex_tree(&inputs);
+        let graph = tree_to_graph(&tree);
+
+        let dot = format!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
+        let mut file = File::create("graph.dot").expect("Unable to create file");
+        file.write_all(dot.as_bytes())
+            .expect("Unable to write data");
     }
 }
